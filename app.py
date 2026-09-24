@@ -3,7 +3,7 @@ from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
-# بنك الأسئلة الشامل مقسم حسب مستويات الصعوبة مع تحديد الإجابة الصحيحة (answer)
+# بنك الأسئلة الشامل مقسم حسب مستويات الصعوبة مع الإجابة النموذجية الدقيقة
 QUESTIONS_DB = {
     "مبتدئ": [
         {"id": 1, "type": "mcq", "prompt": "كلمة 'البيئة' مشتقة من الكلمة الفرنسية Environ والتي تعنى:", "options": ["المحيط", "الغلاف", "السطح", "النظام"], "answer": "المحيط", "hint": "تعني كل ما يحيط بنا."},
@@ -34,28 +34,24 @@ def index():
     num_questions = int(request.form.get('num_questions', 3))
     action = request.form.get('action', 'select')
     
-    # جلب الأسئلة بناءً على المستوى
     pool = QUESTIONS_DB.get(level, QUESTIONS_DB["متوسط"])
     
     if request.method == 'GET' or action == 'select':
-        # عرض صفحة اختيار الأسئلة والمستويات
         return render_template_string(MAIN_TEMPLATE, level=level, num_questions=num_questions)
         
     elif action == 'generate':
-        # توليد أسئلة عشوائية وتخزينها
         selected_questions = random.sample(pool, min(num_questions, len(pool)))
         return render_template_string(QUIZ_TEMPLATE, level=level, questions=selected_questions)
         
     elif action == 'grade':
-        # تصحيح الامتحان وحساب النتيجة
         score = 0
         total = 0
         results = []
         
-        # استلام إجابات الطالب من الـ Form
-        for key, value in request.form.items():
+        # تصحيح دقيق لكل سؤال بناءً على الأسئلة المُرسلة
+        for key in request.form:
             if key.startswith('q_'):
-                q_idx = int(key.split('_')[1])
+                q_idx = key.split('_')[1]
                 user_ans = request.form.get(key)
                 correct_ans = request.form.get(f'ans_{q_idx}')
                 prompt = request.form.get(f'prompt_{q_idx}')
@@ -75,7 +71,6 @@ def index():
                 
         return render_template_string(RESULT_TEMPLATE, level=level, score=score, total=total, results=results)
 
-# قالب واجهة تصميم وتحديد الاختبار
 MAIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -146,7 +141,6 @@ MAIN_TEMPLATE = """
 </html>
 """
 
-# قالب صفحة الاختبار للإجابة
 QUIZ_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -186,14 +180,14 @@ QUIZ_TEMPLATE = """
                         <span class="badge-type">{% if q.type == 'mcq' %}اختيار من متعدد{% else %}صح وخطأ{% endif %}</span>
                         <p><strong>سؤال {{ loop.index }}:</strong> {{ q.prompt }}</p>
                         
-                        <!-- إرسال البيانات الخفية للمقارنة عند التصحيح -->
                         <input type="hidden" name="prompt_{{ loop.index }}" value="{{ q.prompt }}">
                         <input type="hidden" name="ans_{{ loop.index }}" value="{{ q.answer }}">
                         
                         <div class="options-list">
                             {% for opt in q.options %}
                                 <label class="option-item">
-                                    <input type="radio" name="q_{{ loop.index }}" value="{{ opt }}" required> {{ opt }}
+                                    <!-- تم إزالة required لتجنب أي تعارض في المتصفح -->
+                                    <input type="radio" name="q_{{ loop.index }}" value="{{ opt }}"> {{ opt }}
                                 </label>
                             {% endfor %}
                         </div>
@@ -209,7 +203,6 @@ QUIZ_TEMPLATE = """
 </html>
 """
 
-# قالب صفحة عرض النتيجة والتصحيح الفوري
 RESULT_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
