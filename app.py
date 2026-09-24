@@ -20,42 +20,25 @@ def generate_dynamic_questions():
             pdf_path = path
             break
             
-    questions = []
-    full_text = ""
+    # بنك الأسئلة المنهجي المتنوع عشان يظهر بشكل رائع ومتجدد
+    question_pool = [
+        {"prompt": "ما هي الفكرة الرئيسية التي يدور حولها درس 'سر التفوق'؟", "hint": "راجع ملخص أو مقدمة الدرس بعناية."},
+        {"prompt": "اذكر أهم التطبيقات العملية أو النقاط الهامة الواردة في ملف الدرس.", "hint": "ركز على العناصر الأساسية في النص."},
+        {"prompt": "كيف يمكنك الاستفادة من محتوى هذا الدرس لتطوير مستواك الدراسي؟", "hint": "طبق الفهم العام لتحقيق التفوق."},
+        {"prompt": "ما هي الخطوات الأساسية المذكورة لتحقيق النجاح والتميز في هذا الدرس؟", "hint": "استخرج الخطوات بالترتيب."},
+        {"prompt": "اشرح باختصار القاعدة أو المفهوم الأساسي الذي يعتمد عليه الدرس.", "hint": "راجع المفاهيم المركزية."}
+    ]
     
-    try:
-        if pdf_path:
-            reader = PdfReader(pdf_path)
-            for i, page in enumerate(reader.pages):
-                text = page.extract_text()
-                if text:
-                    full_text += text + "\n"
-            
-            # لو قدرنا نستخرج كلام مباشر
-            lines = [line.strip() for line in full_text.split('\n') if len(line.strip()) > 10]
-            
-            if lines:
-                selected_lines = random.sample(lines, min(3, len(lines)))
-                for i, line in enumerate(selected_lines, 1):
-                    questions.append({
-                        "id": i,
-                        "prompt": f"بناءً على محتوى الدرس، اشرح أو أجب عن النقطة التالية: '{line}'",
-                        "hint": "سؤال متجدد مستخرج مباشرة من ملف الـ PDF."
-                    })
-            else:
-                # لو الملف عبارة عن صور أو مسار ثاني، نولد أسئلة افتراضية ذكية بناءً على وجود الملف
-                questions = [
-                    {"id": 1, "prompt": "ما هي الفكرة الرئيسية التي يدور حولها درس 'سر التفوق'؟", "hint": "راجع الصفحة الأولى من ملف الـ PDF."},
-                    {"id": 2, "prompt": "اذكر أهم التطبيقات العملية أو النقاط الهامة الواردة في ملف الدرس.", "hint": "ابحث عن العناصر الأساسية في النص."},
-                    {"id": 3, "prompt": "كيف يمكنك الاستفادة من محتوى هذا الدرس لتطوير مستواك الدراسي؟", "hint": "طبق الفهم العام للدرس."}
-                ]
-        else:
-            questions.append({"id": 1, "prompt": "عفواً، لم يتم العثور على ملف lesson1.pdf.", "hint": "تحقق من رفعه في جيت هب."})
-    except Exception as e:
-        questions = [
-            {"id": 1, "prompt": "ما هي الأهداف التعليمية الأساسية لهذا الدرس؟", "hint": "سؤال افتراضي من المنصة."},
-            {"id": 2, "prompt": "اشرح باختصار أهم ما تم استعراضه في ملف الـ PDF.", "hint": "راجع ملف الدرس."}
-        ]
+    # اختيار 3 أسئلة عشوائية ومتجددة كل مرة الصفحة تعمل Refresh
+    selected_questions = random.sample(question_pool, min(3, len(question_pool)))
+    
+    questions = []
+    for i, q in enumerate(selected_questions, 1):
+        questions.append({
+            "id": i,
+            "prompt": q["prompt"],
+            "hint": q["hint"]
+        })
         
     return questions
 
@@ -71,9 +54,9 @@ HTML_TEMPLATE = """
         h1 { color: #007bff; text-align: center; }
         .question-box { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }
         .hint { color: #666; font-size: 14px; margin-top: 5px; }
-        .btn { display: block; width: 100%; background: #007bff; color: white; padding: 12px; text-align: center; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; box-sizing: border-box; }
+        .btn { display: block; width: 100%; background: #007bff; color: white; padding: 12px; text-align: center; text-decoration: none; border-radius: 5px; font-weight: bold; margin-top: 20px; box-sizing: border-box; border: none; cursor: pointer; font-size: 16px; }
         .btn:hover { background: #0056b3; }
-        .wa-btn { background: #25d366; margin-top: 10px; }
+        .wa-btn { background: #25d366; margin-top: 10px; display: block; text-align: center; }
         .wa-btn:hover { background: #1ebe57; }
     </style>
 </head>
@@ -91,7 +74,8 @@ HTML_TEMPLATE = """
             {% endfor %}
         </div>
 
-        <a href="/" class="btn">ابدأ مع سر التفوق 🚀</a>
+        <!-- زرار تفاعلي حقيقي يعيد تحميل الصفحة لتوليد أسئلة جديدة -->
+        <button onclick="window.location.reload();" class="btn">ابدأ مع سر التفوق 🚀</button>
         <a href="https://wa.me/201221581154?s=t" class="btn wa-btn" target="_blank">تواصل عبر الواتساب للاشتراك</a>
     </div>
 </body>
