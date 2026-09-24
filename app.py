@@ -6,12 +6,25 @@ from pypdf import PdfReader
 app = Flask(__name__)
 
 def generate_dynamic_questions():
-    # تأكد إن اسم الملف مطابق لاسم ملف الـ PDF عندك
-    pdf_path = "Lesson1/lesson1.pdf" 
+    # قائمة بالأماكن المحتملة لوجود الملف لضمان قراءته بسلاسة
+    possible_paths = [
+        "lesson1.pdf",
+        "Lesson1/lesson1.pdf",
+        "lesson1/lesson1.pdf",
+        "Lesson1.pdf",
+        "LESSON1/lesson1.pdf"
+    ]
+    
+    pdf_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            pdf_path = path
+            break
+            
     questions = []
     
     try:
-        if os.path.exists(pdf_path):
+        if pdf_path:
             reader = PdfReader(pdf_path)
             full_text = ""
             for page in reader.pages:
@@ -20,23 +33,23 @@ def generate_dynamic_questions():
                     full_text += text + "\n"
             
             # تقسيم النص إلى جمل أو أسطر مفيدة لتوليد الأسئلة
-            lines = [line.strip() for line in full_text.split('\n') if len(line.strip()) > 20]
+            lines = [line.strip() for line in full_text.split('\n') if len(line.strip()) > 15]
             
             if lines:
-                # اختيار أسئلة متجددة عشوائياً من محتوى الـ PDF في كل زياة للصفحة
+                # اختيار أسئلة متجددة عشوائياً من محتوى الـ PDF
                 selected_lines = random.sample(lines, min(3, len(lines)))
                 for i, line in enumerate(selected_lines, 1):
                     questions.append({
                         "id": i,
-                        "prompt": f"بناءً على درسك، وضح المقصود أو اشرح العبارة التالية: '{line}'",
-                        "hint": "استخرج الإجابة المباشرة من ملف الدرس الخاص بك."
+                        "prompt": f"بناءً على درسك، وضح المفهوم أو اشرح العبارة الآتية: '{line}'",
+                        "hint": "الإجابة مستخرجة مباشرة من ملف الـ PDF الخاص بك."
                     })
             else:
-                questions.append({"id": 1, "prompt": "لم يتم العثور على نصوص كافية داخل ملف الـ PDF لتوليد الأسئلة.", "hint": "تأكد من محتوى الملف."})
+                questions.append({"id": 1, "prompt": "ملف الـ PDF لا يحتوي على نصوص واضحة كفاية لتوليد الأسئلة.", "hint": "تأكد من محتوى الصفحات."})
         else:
-            questions.append({"id": 1, "prompt": "عفواً، لم يتم العثور على ملف lesson1.pdf في المجلد المخصص.", "hint": "تحقق من رفع الملف في مجلد Lesson1."})
+            questions.append({"id": 1, "prompt": "عفواً، لم يتم العثور على ملف lesson1.pdf في أي مكان بالمشروع!", "hint": "تأكد من رفع الملف داخل مستودع جيت هب."})
     except Exception as e:
-        questions.append({"id": 1, "prompt": f"حدث خطأ أثناء قراءة الملف: {e}", "hint": "خطأ تقني."})
+        questions.append({"id": 1, "prompt": f"حدث خطأ أثناء قراءة الملف: {e}", "hint": "خطأ تقني في المعالجة."})
         
     return questions
 
@@ -61,7 +74,7 @@ HTML_TEMPLATE = """
 <body>
     <div class="container">
         <h1>منصة سر التفوق التعليمية</h1>
-        <h3 style="text-align: center; color: #555;">بنك الأسئلة المتجددة (تتغير تلقائياً مع كل تحديث)</h3>
+        <h3 style="text-align: center; color: #555;">بنك الأسئلة المتجددة من ملفك الشخصي</h3>
         
         <div style="margin-top: 20px;">
             {% for q in questions %}
@@ -72,7 +85,7 @@ HTML_TEMPLATE = """
             {% endfor %}
         </div>
 
-        <a href="/" class="btn">🔄 توليد أسئلة جديدة (تحديث الصفحة)</a>
+        <a href="/" class="btn">ابدأ مع سر التفوق 🚀</a>
         <a href="https://wa.me/201221581154?s=t" class="btn wa-btn" target="_blank">تواصل عبر الواتساب للاشتراك</a>
     </div>
 </body>
