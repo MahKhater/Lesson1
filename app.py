@@ -5,7 +5,7 @@ from pypdf import PdfReader
 
 app = Flask(__name__)
 
-def get_pdf_text():
+def extract_real_content_from_pdf():
     possible_paths = [
         "lesson1.pdf",
         "Lesson1/lesson1.pdf",
@@ -20,7 +20,7 @@ def get_pdf_text():
             pdf_path = path
             break
             
-    extracted_lines = []
+    content_lines = []
     if pdf_path:
         try:
             reader = PdfReader(pdf_path)
@@ -28,55 +28,59 @@ def get_pdf_text():
                 text = page.extract_text()
                 if text:
                     for line in text.split('\n'):
-                        clean_line = line.strip()
-                        if len(clean_line) > 10:
-                            extracted_lines.append(clean_line)
+                        clean = line.strip()
+                        # تصفية الأسطر لتكون جملاً مفيدة من محتوى الدرس
+                        if len(clean) > 15 and not clean.startswith("http") and not clean.isdigit():
+                            content_lines.append(clean)
         except Exception:
             pass
             
-    return extracted_lines
+    return content_lines
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # استلام خيارات الطالب من الديزاين
     level = request.form.get('level', 'متوسط')
-    num_questions = int(request.form.get('num_questions', 5))
+    num_questions = int(request.form.get('num_questions', 4))
     
-    # محاولة سحب الكلام من lesson1.pdf
-    pdf_lines = get_pdf_text()
+    # استخراج النصوص الحقيقية من ملف lesson1.pdf
+    pdf_sentences = extract_real_content_from_pdf()
     
-    # بنك الأسئلة المستند لملف lesson1.pdf ومستويات الصعوبة
-    base_questions = []
-    if pdf_lines:
-        for line in pdf_lines:
-            base_questions.append({
-                "prompt": f"بناءً على ما ورد في ملف (lesson1.pdf)، وضح المقصود أو اشرح: '{line}'",
-                "hint": f"مستوى الصعوبة: {level} - مستخرج مباشرة من الدرس."
+    question_pool = []
+    
+    if pdf_sentences:
+        # لو الكود قدر يقرا كلام حقيقي من الـ PDF، نحوله لأسئلة ذكية من صلب المحتوى
+        for sentence in pdf_sentences:
+            question_pool.append({
+                "prompt": f"بناءً على ما ورد في درسك، اشرح أو وضح العبارة التالية: « {sentence} »",
+                "hint": "الإجابة مستخرجة مباشرة من فقرات ملف (lesson1.pdf)."
             })
     
-    # لو الـ PDF صور وماجيبش سطور كفاية، نحط أسئلة احترافية مرتبطة بملف lesson1
-    fallback_pool = [
-        {"prompt": "ما هي الفكرة الأساسية والمحورية التي ناقشها ملف (lesson1.pdf)؟", "hint": f"المستوى ({level}): راجع الصفحة الأولى من الدرس."},
-        {"prompt": "استخرج أهم العناصر أو النقاط الرئيسية المذكورة في درسك الأول.", "hint": f"المستوى ({level}): دقق في تفاصيل الملف."},
-        {"prompt": "كيف يطبق المفهوم الرئيسي لملف (lesson1.pdf) في الواقع العملي؟", "hint": f"المستوى ({level}): ربط الفهم بالتطبيق."},
-        {"prompt": "ما هي النتائج أو الأهداف التي يهدف درس (lesson1.pdf) لتحقيقها؟", "hint": f"المستوى ({level}): خلاصة الدرس."},
-        {"prompt": "اشرح بإيجاز القاعدة المركزية التي بني عليها محتوى (lesson1.pdf).", "hint": f"المستوى ({level}): التفكير النقدي."}
-    ]
+    # لو الملف مصور أو لسه محتاج دعم إضافي، ندمج محتوى تعليمي دقيق ومباشر للدرس
+    if len(question_pool) < num_questions:
+        fallback_lessons = [
+            {"prompt": "ما هي الأركان أو الأساسيات التي تم شرحها في الجزء الأول من ملف الدرس؟", "hint": "راجع الترتيب التسلسلي للأفكار في ملف lesson1.pdf."},
+            {"prompt": "وضح المقصود بالمصطلحات العلمية أو العملية الرئيسية الواردة في نص الدرس.", "hint": "ركز على الكلمات المفتاحية في المستند."},
+            {"prompt": "ما هي النتيجة المباشرة المترتبة على القاعدة الأساسية المشروحة في ملف lesson1؟", "hint": "تحقق من استنتاجات الفقرة الرئيسية."},
+            {"prompt": "كيف تتعامل مع الفكرة المركزية للدرس وتطبقها عملياً؟", "hint": "اربط الأمثلة الموجودة في الدرس بالتطبيق."},
+            {"prompt": "استخرج من الدرس الأسباب التي تؤدي إلى النجاح في الفهم والتطبيق.", "hint": "راجع تفاصيل الشرح في الملف."},
+            {"prompt": "ما هي الملاحظات الهامة التي يجب مراعاتها عند دراسة هذا الموضوع؟", "hint": "دقق في التنبيهات والنقاط البارزة بالدرس."}
+        ]
+        for item in fallback_lessons:
+            if item not in question_pool:
+                question_pool.append(item)
+
+    # اختيار عدد الأسئلة حسب اختيار الطالب
+    selected_pool = random.sample(question_pool, min(num_questions, len(question_pool)))
     
-    pool = base_questions if len(base_questions) >= num_questions else (base_questions + fallback_pool)
-    
-    # اختيار عدد الأسئلة اللي اختارها الطالب
-    selected_questions = random.sample(pool, min(num_questions, len(pool))) if pool else fallback_pool[:num_questions]
-    
-    generated_questions = []
-    for i, q in enumerate(selected_questions, 1):
-        generated_questions.append({
+    questions = []
+    for i, q in enumerate(selected_pool, 1):
+        hint_style = f"مستوى ({level}) - " + q["hint"]
+        questions.append({
             "id": i,
             "prompt": q["prompt"],
-            "hint": q["hint"]
+            "hint": hint_style
         })
 
-    # لو لسه مفيش ضغط على زرار البدء، نعرض واجهة الاختيار (الديزاين الجديد)
     show_quiz = request.method == 'POST'
     
     HTML_TEMPLATE = """
@@ -85,10 +89,10 @@ def index():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>منصة سر التفوق - تحدي lesson1.pdf</title>
+        <title>منصة سر التفوق - محتوى الدرس</title>
         <style>
             body { font-family: 'Tahoma', sans-serif; background-color: #114b3e; color: #333; margin: 0; padding: 20px; direction: rtl; text-align: right; }
-            .main-card { max-width: 500px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+            .main-card { max-width: 550px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
             .header-badge { text-align: center; color: #d4a373; font-size: 14px; font-weight: bold; margin-bottom: 5px; }
             h2 { text-align: center; color: #114b3e; margin-top: 0; font-size: 26px; }
             .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 25px; }
@@ -107,15 +111,12 @@ def index():
             input[type=range] { width: 100%; accent-color: #114b3e; cursor: pointer; }
             
             /* زر البدء */
-            .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(17,75,62,0.3); transition: 0.3s; }
+            .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(17,75,62,0.3); transition: 0.3s; text-decoration: none; }
             .start-btn:hover { background: #0d382f; }
-            
-            .footer-info { text-align: center; font-size: 12px; color: #888; margin-top: 15px; }
             
             /* صندوق الأسئلة بعد البدء */
             .question-box { background: #fdfdfd; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 10px; border-right: 5px solid #114b3e; }
-            .hint { color: #666; font-size: 13px; margin-top: 5px; }
-            .back-btn { display: block; text-align: center; background: #6c757d; color: white; padding: 10px; border-radius: 10px; text-decoration: none; margin-top: 15px; font-weight: bold; }
+            .hint { color: #555; font-size: 13px; margin-top: 8px; background: #f1f8f6; padding: 8px; border-radius: 6px; }
             
             .lesson-badge { background: #f1f8f6; border: 1px solid #c8e6c9; padding: 12px; border-radius: 12px; text-align: center; margin-top: 20px; font-weight: bold; color: #114b3e; font-size: 14px; }
         </style>
@@ -125,7 +126,7 @@ def index():
             {% if not show_quiz %}
                 <div class="header-badge">جاهز للتحدي؟ ✨</div>
                 <h2>صمّم امتحانك</h2>
-                <div class="subtitle">الدرس الأول: مستخرج مباشرة من (lesson1.pdf)</div>
+                <div class="subtitle">الدرس الأول: محتوى ملف lesson1.pdf</div>
                 
                 <form method="POST">
                     <div class="section-title">اختيار مستوى الصعوبة</div>
@@ -153,23 +154,27 @@ def index():
                 </form>
                 
                 <div class="lesson-badge">
-                    📄 الأسئلة من ملف: lesson1.pdf فقط
+                    📄 الأسئلة مستخرجة من محتوى: lesson1.pdf
                 </div>
             {% else %}
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
+                    <span style="font-size: 14px; color: #555;">المستوى: <strong>{{ level }}</strong></span>
+                    <span style="font-size: 14px; color: #555;">عدد الأسئلة: <strong>{{ num_questions }}</strong></span>
+                </div>
+                
                 <h2>بنك أسئلة الدرس الأول</h2>
-                <div class="subtitle">المستوى: <strong>{{ level }}</strong> | عدد الأسئلة: <strong>{{ num_questions }}</strong></div>
                 
                 <div style="margin-top: 20px;">
                     {% for q in questions %}
                         <div class="question-box">
                             <p><strong>سؤال {{ q.id }}:</strong> {{ q.prompt }}</p>
-                            <p class="hint">💡 <em>توجيه:</em> {{ q.hint }}</p>
+                            <div class="hint">💡 <em>إرشاد:</em> {{ q.hint }}</div>
                         </div>
                     {% endfor %}
                 </div>
                 
-                <a href="/" class="start-btn" style="text-decoration: none; text-align: center; margin-top: 20px; display: block;">🔄 تصميم امتحان جديد</a>
-                <a href="https://wa.me/201221581154?s=t" class="back-btn" style="background: #25d366;" target="_blank">تواصل عبر الواتساب للاشتراك</a>
+                <a href="/" class="start-btn" style="text-align: center; margin-top: 20px;">🔄 تصميم امتحان جديد</a>
+                <a href="https://wa.me/201221581154?s=t" class="start-btn" style="background: #25d366; text-align: center; margin-top: 10px;" target="_blank">تواصل عبر الواتساب للاشتراك 💬</a>
             {% endif %}
         </div>
 
@@ -182,7 +187,7 @@ def index():
     </body>
     </html>
     """
-    return render_template_string(HTML_TEMPLATE, level=level, num_questions=num_questions, questions=generated_questions, show_quiz=show_quiz)
+    return render_template_string(HTML_TEMPLATE, level=level, num_questions=num_questions, questions=questions, show_quiz=show_quiz)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
