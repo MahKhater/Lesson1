@@ -1,26 +1,34 @@
 import os
-from flask import Flask, render_template_string, request, jsonify
+from flask import Flask, render_template_string, request, jsonify, send_file
 from pypdf import PdfReader
 import google.generativeai as genai
 
 app = Flask(_name_)
 
-# إعداد مفتاح الذكاء الاصطناعي
-API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
-genai.configure(api_key=API_KEY)
+# إعداد مفتاح الذكاء الاصطناعي مع معالجة الأمان
+API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if API_KEY:
+    try:
+        genai.configure(api_key=API_KEY)
+    except Exception:
+        pass
 
 PDF_PATH = "lesson1.pdf"
+WHATSAPP_FALLBACK = "الأسئلة مش موجودة حاليا.. ابعت رسالة على الواتس 01221581154"
 
 def extract_pdf_text(pdf_path):
-    if not os.path.exists(pdf_path):
-        return "الأسئلة مش موجودة حاليا.. ابعت رسالة على الواتس 01221581154"
-    reader = PdfReader(pdf_path)
-    text = ""
-    for page in reader.pages:
-        t = page.extract_text()
-        if t:
-            text += t + "\n"
-    return text
+    try:
+        if not os.path.exists(pdf_path):
+            return WHATSAPP_FALLBACK
+        reader = PdfReader(pdf_path)
+        text = ""
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                text += t + "\n"
+        return text if text.strip() else WHATSAPP_FALLBACK
+    except Exception:
+        return WHATSAPP_FALLBACK
 
 @app.route('/')
 def index():
@@ -71,7 +79,7 @@ def index():
                 <div class="brand-badge">سر التفوق</div>
                 <div class="edition-tag">النسخة الكاملة</div>
                 <h1>الدرس الأول مجرد بداية.. جاهز تتحدى نفسك وتكتشف سر التفوق الحقيقي في باقي المنهج؟ 👑</h1>
-                <div class="desc">لا تكتف بدرس واحد! انضم للنسخة الكاملة، وفك قفل بقية الدروس لإنشاء امتحانات لا نهائية متجددة بالذكاء الاصطناعي مع تصحيح فوري وشرح فور لكل سؤال.</div>
+                <div class="desc">لا تكتف بدرس واحد! انضم للنسخة الكاملة، وفك قفل بقية الدروس لإنشاء امتحانات لا نهائية متجددة بالذكاء الاصطناعي مع تصحيح فوري وشرح لكل سؤال.</div>
                 <div class="whatsapp-banner">التواصل عبر الواتساب فقط: 01221581154</div>
             </div>
             
@@ -144,10 +152,10 @@ def index():
                     });
                     const data = await response.json();
                     document.getElementById(loadingId).remove();
-                    appendMessage(data.answer || 'عذراً، حدث خطأ في الرد.', 'ai');
+                    appendMessage(data.answer || 'عذراً، حدث خطأ في الرد. ابعت رسالة على الواتس 01221581154', 'ai');
                 } catch (e) {
                     document.getElementById(loadingId).remove();
-                    appendMessage('حدث خطأ في الاتصال بالخادم.', 'ai');
+                    appendMessage('حدث خطأ في الاتصال بالخادم. تواصل معنا عبر الواتساب: 01221581154', 'ai');
                 }
             }
 
@@ -164,41 +172,44 @@ def index():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    data = request.get_json()
-    question = data.get('question', '')
-    if not question:
-        return jsonify({'answer': 'الرجاء إدخال سؤال صحيح.'})
-
-    pdf_text = extract_pdf_text(PDF_PATH)
-    
-    if "الأسئلة مش موجودة" in pdf_text:
-        return jsonify({'answer': pdf_text})
-
-    prompt = f"""
-    أنت مساعد تعليمي ذكي لمنصة "سر التفوق" التعليمية ومخصص لشرح مادة العلوم المتكاملة للطلاب.
-    بناءً على محتوى ملف الدرس التالي فقط، أجب عن سؤال الطالب بدقة ووضوح وبأسلوب تربوي محفز:
-    
-    محتوى الدرس:
-    {pdf_text}
-    
-    سؤال الطالب: {question}
-    """
-
     try:
+        data = request.get_json()
+        question = data.get('question', '')
+        if not question:
+            return jsonify({'answer': 'الرجاء إدخال سؤال صحيح.'})
+
+        pdf_text = extract_pdf_text(PDF_PATH)
+        if "الأسئلة مش موجودة" in pdf_text:
+            return jsonify({'answer': pdf_text})
+
+        if not API_KEY:
+            return jsonify({'answer': "الخدمة تعمل في وضع المعاينة. للتواصل والاشتراك: https://wa.me/201221581154?s=t"})
+
+        prompt = f"""
+        أنت مساعد تعليمي ذكي لمنصة "سر التفوق" التعليمية ومخصص لشرح مادة العلوم المتكاملة للطلاب.
+        بناءً على محتوى ملف الدرس التالي فقط، أجب عن سؤال الطالب بدقة ووضوح وبأسلوب تربوي محفز:
+        
+        محتوى الدرس:
+        {pdf_text}
+        
+        سؤال الطالب: {question}
+        """
+
         model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
-        answer = response.text
+        answer = response.text if response and response.text else WHATSAPP_FALLBACK
+        return jsonify({'answer': answer})
     except Exception as e:
-        answer = f"الأسئلة مش موجودة حاليا.. ابعت رسالة على الواتس 01221581154"
-
-    return jsonify({'answer': answer})
+        return jsonify({'answer': WHATSAPP_FALLBACK})
 
 @app.route('/view-pdf')
 def view_pdf():
-    from flask import send_file
-    if os.path.exists(PDF_PATH):
-        return send_file(PDF_PATH)
-    return "الملف غير موجود.. ابعت رسالة على الواتس 01221581154", 404
+    try:
+        if os.path.exists(PDF_PATH):
+            return send_file(PDF_PATH)
+        return WHATSAPP_FALLBACK, 404
+    except Exception:
+        return WHATSAPP_FALLBACK, 404
 
 if _name_ == '_main_':
     app.run(host='0.0.0.0', port=5000)
