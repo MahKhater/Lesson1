@@ -6,5 +6,5 @@ app = Flask(__name__)
 def index():
     return "<h1>منصة سر التفوق - تعمل بنجاح!</h1><br><a href='https://wa.me/201221581154?s=t'>تواصل عبر الواتساب للاشتراك</a>"
 
-if _name_ == '_main_':
+if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
