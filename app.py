@@ -3,7 +3,6 @@ from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
-# بنك الأسئلة الحقيقي والموسع
 QUESTIONS_DB = {
     "مبتدئ": [
         {"id": "b1", "type": "mcq", "prompt": "كلمة 'البيئة' مشتقة من الكلمة الفرنسية Environ والتي تعنى:", "options": ["المحيط", "الغلاف", "السطح", "النظام"], "answer": "المحيط", "hint": "تعني كل ما يحيط بالإنسان وكائنات حيّة."},
@@ -110,13 +109,6 @@ MAIN_TEMPLATE = """
         .start-btn:hover { background: #0d382f; }
         .whatsapp-link-btn { display: block; width: 100%; background: #25d366; color: white; padding: 13px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 15px; text-decoration: none; box-shadow: 0 4px 10px rgba(37,211,102,0.3); transition: 0.3s; margin-top: 15px; box-sizing: border-box; }
         .whatsapp-link-btn:hover { background: #1ebe57; }
-        .print-btn { background: #455a64; margin-top: 10px; }
-        .print-btn:hover { background: #37474f; }
-        @media print {
-            body { background: white; padding: 0; }
-            .whatsapp-link-btn, .print-btn, .start-btn { display: none !important; }
-            .main-card { box-shadow: none; padding: 0; }
-        }
     </style>
 </head>
 <body>
@@ -145,13 +137,12 @@ MAIN_TEMPLATE = """
                     <span>عدد الأسئلة بالاختبار</span>
                     <span id="range-val" style="background: #114b3e; color: white; padding: 2px 10px; border-radius: 20px; font-size: 13px;">{{ num_questions }} أسئلة</span>
                 </div>
-                <input type="range" name="num_questions" min="3" max="10" value="{{ num_questions }}" oninput="document.getElementById('range-val').innerText = this.value + ' أسئلة'">
+                <input type="range" name="num_questions" min="5" max="10" value="{% if num_questions < 5 %}5{% else %}{{ num_questions }}{% endif %}" oninput="document.getElementById('range-val').innerText = this.value + ' أسئلة'">
             </div>
             
             <button type="submit" class="start-btn">ابدأ مع سر التفوق 🚀</button>
         </form>
         
-        <button type="button" class="start-btn print-btn" onclick="window.print()">🖨️ طباعة الصفحة الأولى</button>
         <a href="https://wa.me/201221581154?s=t" class="whatsapp-link-btn" target="_blank">💬 للاشتراك اضغط هنا</a>
     </div>
     <script>
@@ -184,7 +175,43 @@ QUIZ_TEMPLATE = """
         .hint { color: #555; font-size: 13px; margin-top: 10px; background: #f1f8f6; padding: 8px; border-radius: 6px; }
         .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(17,75,62,0.3); transition: 0.3s; text-decoration: none; box-sizing: border-box; }
         .start-btn:hover { background: #0d382f; }
+        #timer-box { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; padding: 10px; border-radius: 10px; text-align: center; font-weight: bold; margin-bottom: 15px; font-size: 16px; display: none; }
+        @media print {
+            body { display: none !important; }
+        }
     </style>
+    <script>
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
+                e.preventDefault();
+                alert('عذراً، الطباعة غير مسموحة أثناء حل الاختبار!');
+            }
+        });
+
+        {% if level == 'محترف' %}
+        let timeLeft = {{ num_questions }} * 120; // 120 ثانية لكل سؤال
+        
+        function startTimer() {
+            const timerBox = document.getElementById('timer-box');
+            timerBox.style.display = 'block';
+            
+            const timerInterval = setInterval(function() {
+                let minutes = Math.floor(timeLeft / 60);
+                let seconds = timeLeft % 60;
+                
+                timerBox.innerHTML = `⏱️ الوقت المتبقي: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('انتهى الوقت المحدد للاختبار!');
+                    document.getElementById('quiz-form').submit();
+                }
+                timeLeft--;
+            }, 1000);
+        }
+        window.onload = startTimer;
+        {% endif %}
+    </script>
 </head>
 <body>
     <div class="main-card">
@@ -195,7 +222,9 @@ QUIZ_TEMPLATE = """
 
         <h2>اختبار الدرس الأول الشامل</h2>
         
-        <form method="POST">
+        <div id="timer-box"></div>
+        
+        <form method="POST" id="quiz-form">
             <input type="hidden" name="action" value="grade">
             <input type="hidden" name="level" value="{{ level }}">
             
@@ -247,13 +276,6 @@ RESULT_TEMPLATE = """
         .start-btn:hover { background: #0d382f; }
         .wa-btn { background: #25d366; margin-top: 10px; display: block; text-align: center; }
         .wa-btn:hover { background: #1ebe57; }
-        .print-btn { background: #455a64; margin-top: 10px; }
-        .print-btn:hover { background: #37474f; }
-        @media print {
-            body { background: white; padding: 0; }
-            .start-btn, .wa-btn, .print-btn { display: none !important; }
-            .main-card { box-shadow: none; padding: 0; }
-        }
     </style>
 </head>
 <body>
@@ -279,7 +301,7 @@ RESULT_TEMPLATE = """
             {% endfor %}
         </div>
 
-        <button type="button" class="start-btn print-btn" onclick="window.print()">🖨️ طباعة النتيجة</button>
+        <button type="button" class="start-btn print-btn" onclick="window.print()" style="background: #455a64; margin-top: 15px;">🖨️ طباعة النتيجة</button>
         <a href="/" class="start-btn" style="text-align: center; margin-top: 10px;">🔄 تصميم امتحان جديد</a>
         <a href="https://wa.me/201221581154?s=t" class="start-btn wa-btn" target="_blank">تواصل عبر الواتساب للاشتراك 💬</a>
     </div>
