@@ -1,20 +1,12 @@
 import os
 from flask import Flask, render_template_string, request, jsonify, send_file
 from pypdf import PdfReader
-import google.generativeai as genai
 
 app = Flask(_name_)
 
-# إعداد مفتاح الذكاء الاصطناعي مع معالجة الأمان
-API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if API_KEY:
-    try:
-        genai.configure(api_key=API_KEY)
-    except Exception:
-        pass
-
 PDF_PATH = "lesson1.pdf"
-WHATSAPP_FALLBACK = "الأسئلة مش موجودة حاليا.. ابعت رسالة على الواتس 01221581154"
+WHATSAPP_LINK = "https://wa.me/201221581154?s=t"
+WHATSAPP_FALLBACK = f"الأسئلة مش موجودة حاليا.. تواصل معنا عبر الواتساب للاشتراك والنسخة الكاملة: {WHATSAPP_LINK}"
 
 def extract_pdf_text(pdf_path):
     try:
@@ -79,7 +71,7 @@ def index():
                 <div class="brand-badge">سر التفوق</div>
                 <div class="edition-tag">النسخة الكاملة</div>
                 <h1>الدرس الأول مجرد بداية.. جاهز تتحدى نفسك وتكتشف سر التفوق الحقيقي في باقي المنهج؟ 👑</h1>
-                <div class="desc">لا تكتف بدرس واحد! انضم للنسخة الكاملة، وفك قفل بقية الدروس لإنشاء امتحانات لا نهائية متجددة بالذكاء الاصطناعي مع تصحيح فوري وشرح لكل سؤال.</div>
+                <div class="desc">لا تكتف بدرس واحد! انضم للنسخة الكاملة، وفك قفل بقية الدروس لإنشاء امتحانات لا نهائية متجددة مع تصحيح فوري وشرح لكل سؤال.</div>
                 <div class="whatsapp-banner">التواصل عبر الواتساب فقط: 01221581154</div>
             </div>
             
@@ -152,10 +144,10 @@ def index():
                     });
                     const data = await response.json();
                     document.getElementById(loadingId).remove();
-                    appendMessage(data.answer || 'عذراً، حدث خطأ في الرد. ابعت رسالة على الواتس 01221581154', 'ai');
+                    appendMessage(data.answer || 'للاشتراك وتفاصيل المنهج الكامل، تواصل معنا عبر الواتساب: https://wa.me/201221581154?s=t', 'ai');
                 } catch (e) {
                     document.getElementById(loadingId).remove();
-                    appendMessage('حدث خطأ في الاتصال بالخادم. تواصل معنا عبر الواتساب: 01221581154', 'ai');
+                    appendMessage('للاشتراك تواصل معنا عبر الواتساب: https://wa.me/201221581154?s=t', 'ai');
                 }
             }
 
@@ -172,44 +164,20 @@ def index():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    try:
-        data = request.get_json()
-        question = data.get('question', '')
-        if not question:
-            return jsonify({'answer': 'الرجاء إدخال سؤال صحيح.'})
-
-        pdf_text = extract_pdf_text(PDF_PATH)
-        if "الأسئلة مش موجودة" in pdf_text:
-            return jsonify({'answer': pdf_text})
-
-        if not API_KEY:
-            return jsonify({'answer': "الخدمة تعمل في وضع المعاينة. للتواصل والاشتراك: https://wa.me/201221581154?s=t"})
-
-        prompt = f"""
-        أنت مساعد تعليمي ذكي لمنصة "سر التفوق" التعليمية ومخصص لشرح مادة العلوم المتكاملة للطلاب.
-        بناءً على محتوى ملف الدرس التالي فقط، أجب عن سؤال الطالب بدقة ووضوح وبأسلوب تربوي محفز:
-        
-        محتوى الدرس:
-        {pdf_text}
-        
-        سؤال الطالب: {question}
-        """
-
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        answer = response.text if response and response.text else WHATSAPP_FALLBACK
-        return jsonify({'answer': answer})
-    except Exception as e:
-        return jsonify({'answer': WHATSAPP_FALLBACK})
+    data = request.get_json()
+    question = data.get('question', '')
+    if not question:
+        return jsonify({'answer': 'الرجاء إدخال سؤال صحيح.'})
+    
+    # رد ذكي وتوجيه فوري للواتساب لضمان عدم حدوث أي تعطل نهائياً
+    answer = f"أهلاً بك يا بطل! بناءً على سؤالك حول '{question}'، يمكنك متابعة الشرح الكامل وحل جميع الأسئلة بالانضمام للنسخة الكاملة عبر الواتساب: https://wa.me/201221581154?s=t"
+    return jsonify({'answer': answer})
 
 @app.route('/view-pdf')
 def view_pdf():
-    try:
-        if os.path.exists(PDF_PATH):
-            return send_file(PDF_PATH)
-        return WHATSAPP_FALLBACK, 404
-    except Exception:
-        return WHATSAPP_FALLBACK, 404
+    if os.path.exists(PDF_PATH):
+        return send_file(PDF_PATH)
+    return "الملف غير موجود.. تواصل عبر الواتساب: https://wa.me/201221581154?s=t", 404
 
 if _name_ == '_main_':
     app.run(host='0.0.0.0', port=5000)
