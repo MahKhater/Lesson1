@@ -274,7 +274,6 @@ MAIN_TEMPLATE = """
 </body>
 </html>
 """
-
 QUIZ_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
