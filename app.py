@@ -159,6 +159,7 @@ questions_db = {
         {"id": "p48", "type": "tf", "prompt": "الاحتباس الحراري يسبب ذوبان الجليد وارتفاع منسوب سطح البحار مما يهدد السواحل المنخفضة.", "options": ["صح", "خطأ"], "answer": "صح", "hint": "تهديد ساحلي عالمي."},
         {"id": "p49", "type": "mcq", "prompt": "ما هي النتيجة النهائية للتعاقب البيئي الأولي بعد مرور مئات السنين؟", "options": ["تكون مجتمع ذروة مستقر ومتنوع تنضج فيه التربة والحياة البيئية تماماً", "بقاء الأرض صخرية وجرداء وخالية للأبد", "انقراض كافة الكائنات الحية الكبرى والصغرى", "تحول النظام بالكامل إلى منطقة صحراوية رملية حارة"], "answer": "تكون مجتمع ذروة مستقر ومتنوع تنضج فيه التربة والحياة البيئية تماماً", "hint": "وصول المجتمع لمرحلة الاستقرار (Climax community)."},
         {"id": "p50", "type": "tf", "prompt": "حماية البيئة وموارد الأرض مسؤولية تضامنية عالمية وليست مجرد خيار ترفيهي.", "options": ["صح", "خطأ"], "answer": "صح", "hint": "مسؤولية الجميع استمرار الحياة."}
+
     ]
 }
 
@@ -167,42 +168,85 @@ def index():
     level = request.form.get('level', 'متوسط')
     num_questions = int(request.form.get('num_questions', 5))
     action = request.form.get('action', 'select')
-    
-    pool = QUESTIONS_DB.get(level, QUESTIONS_DB["متوسط"])
-    
+   
+    pool = QUESTIONS_DB.get(level, QUESTIONS_DB.get("متوسط", []))
+   
     if request.method == 'GET' or action == 'select':
         return render_template_string(MAIN_TEMPLATE, level=level, num_questions=num_questions)
-        
+       
     elif action == 'generate':
-        selected_questions = random.sample(pool, min(num_questions, len(pool)))
-        return render_template_string(QUIZ_TEMPLATE, level=level, num_questions=len(selected_questions), questions=selected_questions)
+        selected_questions = random.sample(pool, min(num_questions, len(pool))) if pool else []
+        session['questions'] = selected_questions
+        session['level'] = level
+        session['current_index'] = 0
+        session['user_answers'] = {}
+        return redirect(url_for('quiz_step'))
+
+@app.route('/quiz', methods=['GET', 'POST'])
+def quiz_step():
+    questions = session.get('questions', [])
+    current_index = session.get('current_index', 0)
+    level = session.get('level', 'متوسط')
+   
+    if not questions:
+        return redirect(url_for('index'))
+       
+    if request.method == 'POST':
+        ans = request.form.get('current_answer')
         
-    elif action == 'grade':
-        score = 0
-        total = 0
-        results = []
-        
-        for key in request.form:
-            if key.startswith('q_'):
-                qid = key.split('_')[1]
-                user_ans = request.form.get(key)
-                correct_ans = request.form.get(f'ans_{qid}')
-                prompt = request.form.get(f'prompt_{qid}')
-                
-                total += 1
-                is_correct = (user_ans == correct_ans)
-                if is_correct:
-                    score += 1
-                    
-                results.append({
-                    "id": total,
-                    "prompt": prompt,
-                    "user_ans": user_ans if user_ans else "لم تتم الإجابة",
-                    "correct_ans": correct_ans,
-                    "is_correct": is_correct
-                })
-                
-        return render_template_string(RESULT_TEMPLATE, level=level, score=score, total=total, results=results)
+        user_answers = session.get('user_answers', {})
+        user_answers[str(current_index)] = {
+            "prompt": questions[current_index]['prompt'],
+            "user_ans": ans if ans else "لم تتم الإجابة",
+            "correct_ans": questions[current_index]['answer'],
+            "is_correct": (ans == questions[current_index]['answer'])
+        }
+        session['user_answers'] = user_answers
+       
+        current_index += 1
+        session['current_index'] = current_index
+       
+    if current_index >= len(questions):
+        return redirect(url_for('results'))
+       
+    current_question = questions[current_index]
+   
+    return render_template_string(
+        QUIZ_TEMPLATE,
+        level=level,
+        question=current_question,
+        current_num=current_index + 1,
+        total_questions=len(questions),
+        num_questions=len(questions)
+    )
+
+@app.route('/results')
+def results():
+    user_answers = session.get('user_answers', {})
+    level = session.get('level', 'متوسط')
+   
+    score = 0
+    total = len(user_answers)
+    results_list = []
+   
+    for idx, data in sorted(user_answers.items(), key=lambda x: int(x[0])):
+        if data['is_correct']:
+            score += 1
+        results_list.append({
+            "id": int(idx) + 1,
+            "prompt": data['prompt'],
+            "user_ans": data['user_ans'],
+            "correct_ans": data['correct_ans'],
+            "is_correct": data['is_correct']
+        })
+       
+    return render_template_string(
+        RESULT_TEMPLATE,
+        level=level,
+        score=score,
+        total=total,
+        results=results_list
+    )
 
 MAIN_TEMPLATE = """
 <!DOCTYPE html>
@@ -236,7 +280,7 @@ MAIN_TEMPLATE = """
         <div class="header-badge">منصة سر التفوق التعليمية ✨</div>
         <h2>صمّم امتحانك</h2>
         <div class="subtitle">اختبر معلوماتك الآن بكل سهولة ⏱️</div>
-        
+       
         <form method="POST">
             <input type="hidden" name="action" value="generate">
             <div class="section-title">اختيار مستوى الصعوبة</div>
@@ -251,18 +295,18 @@ MAIN_TEMPLATE = """
                     <input type="radio" name="level" value="محترف" {% if level == 'محترف' %}checked{% endif %} onchange="updateActive(this)"> محترف ⏱️
                 </label>
             </div>
-            
+           
             <div class="slider-container">
                 <div class="slider-header">
                     <span>عدد الأسئلة بالاختبار</span>
                     <span id="range-val" style="background: #114b3e; color: white; padding: 2px 10px; border-radius: 20px; font-size: 13px;">{{ num_questions }} أسئلة</span>
                 </div>
-                <input type="range" name="num_questions" min="5" max="15" value="{% if num_questions < 5 %}5{% else %}{{ num_questions }}{% endif %}" oninput="document.getElementById('range-val').innerText = this.value + ' أسئلة'">
+                <input type="range" name="num_questions" min="5" max="15" value="{{ num_questions }}" oninput="document.getElementById('range-val').innerText = this.value + ' أسئلة'">
             </div>
-            
+           
             <button type="submit" class="start-btn">ابدأ مع سر التفوق 🚀</button>
         </form>
-        
+       
         <a href="https://wa.me/201221581154?s=t" class="whatsapp-link-btn" target="_blank">💬 للاشتراك اضغط هنا</a>
     </div>
     <script>
@@ -274,6 +318,7 @@ MAIN_TEMPLATE = """
 </body>
 </html>
 """
+
 QUIZ_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -299,76 +344,32 @@ QUIZ_TEMPLATE = """
             body { display: none !important; }
         }
     </style>
-    <script>
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && (e.key === 'p' || e.key === 'P')) {
-                e.preventDefault();
-                alert('عذراً، الطباعة غير مسموحة أثناء حل الاختبار!');
-            }
-        });
-
-        {% if level == 'محترف' %}
-        let timeLeft = {{ num_questions }} * 120; // 120 ثانية لكل سؤال
-        
-        function startTimer() {
-            const timerBox = document.getElementById('timer-box');
-            timerBox.style.display = 'block';
-            
-            const timerInterval = setInterval(function() {
-                let minutes = Math.floor(timeLeft / 60);
-                let seconds = timeLeft % 60;
-                
-                timerBox.innerHTML = `⏱️ الوقت المتبقي: ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    alert('انتهى الوقت المحدد للاختبار!');
-                    document.getElementById('quiz-form').submit();
-                }
-                timeLeft--;
-            }, 1000);
-        }
-        window.onload = startTimer;
-        {% endif %}
-    </script>
 </head>
 <body>
     <div class="main-card">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 10px;">
             <span style="font-size: 14px; color: #555;">المستوى: <strong style="color: #114b3e;">{{ level }}</strong></span>
-            <span style="font-size: 14px; color: #555;">عدد الأسئلة: <strong style="color: #114b3e;">{{ num_questions }}</strong></span>
+            <span style="font-size: 14px; color: #555;">السؤال: <strong style="color: #114b3e;">{{ current_num }} من {{ total_questions }}</strong></span>
         </div>
 
         <h2>اختبار الدرس الأول الشامل</h2>
-        
-        <div id="timer-box"></div>
-        
-        <form method="POST" id="quiz-form">
-            <input type="hidden" name="action" value="grade">
-            <input type="hidden" name="level" value="{{ level }}">
-            
-            <div style="margin-top: 20px;">
-                {% for q in questions %}
-                    <div class="question-box">
-                        <span class="badge-type">{% if q.type == 'mcq' %}اختيار من متعدد{% else %}صح وخطأ{% endif %}</span>
-                        <p><strong>سؤال {{ loop.index }}:</strong> {{ q.prompt }}</p>
-                        
-                        <input type="hidden" name="prompt_{{ q.id }}" value="{{ q.prompt }}">
-                        <input type="hidden" name="ans_{{ q.id }}" value="{{ q.answer }}">
-                        
-                        <div class="options-list">
-                            {% for opt in q.options %}
-                                <label class="option-item">
-                                    <input type="radio" name="q_{{ q.id }}" value="{{ opt }}"> {{ opt }}
-                                </label>
-                            {% endfor %}
-                        </div>
-                        <div class="hint">💡 <em>{{ q.hint }}</em></div>
-                    </div>
-                {% endfor %}
+       
+        <form method="POST" action="{{ url_for('quiz_step') }}" id="quiz-form">
+            <div class="question-box">
+                <span class="badge-type">اختيار من متعدد</span>
+                <p><strong>سؤال {{ current_num }}:</strong> {{ question.prompt }}</p>
+               
+                <div class="options-list">
+                    {% for opt in question.options %}
+                        <label class="option-item">
+                            <input type="radio" name="current_answer" value="{{ opt }}" required> {{ opt }}
+                        </label>
+                    {% endfor %}
+                </div>
+                <div class="hint">💡 <em>{{ question.hint }}</em></div>
             </div>
-            
-            <button type="submit" class="start-btn">تسليم الامتحان والتصحيح 📋</button>
+           
+            <button type="submit" class="start-btn">السؤال التالي ←</button>
         </form>
     </div>
 </body>
@@ -381,40 +382,17 @@ RESULT_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سر التفوق - نتيجة الامتحان</title>
+    <title>نتيجة الامتحان - سر التفوق</title>
     <style>
         body { font-family: 'Tahoma', sans-serif; background-color: #114b3e; color: #333; margin: 0; padding: 20px; direction: rtl; text-align: right; }
         .main-card { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         h2 { text-align: center; color: #114b3e; margin-top: 0; font-size: 26px; }
-        
-        .circle-score {
-            width: 130px;
-            height: 130px;
-            border: 6px solid #114b3e;
-            border-radius: 50%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin: 20px auto;
-            background: #e8f5e9;
-        }
-        .score-percentage {
-            font-size: 28px;
-            font-weight: bold;
-            color: #114b3e;
-            direction: ltr;
-        }
-        .score-text {
-            font-size: 13px;
-            color: #555;
-            margin-top: 2px;
-        }
-
+        .score-box { background: #e8f5e9; border: 2px solid #2e7d32; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
+        .score-num { font-size: 32px; font-weight: bold; color: #1b5e20; }
         .res-item { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 10px; }
         .correct { border-right: 5px solid #2e7d32; }
         .wrong { border-right: 5px solid #c62828; }
-        .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; text-decoration: none; font-weight: bold; }
+        .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(17,75,62,0.3); transition: 0.3s; text-decoration: none; box-sizing: border-box; }
         .start-btn:hover { background: #0d382f; }
         .wa-btn { background: #25d366; margin-top: 10px; display: block; text-align: center; }
         .wa-btn:hover { background: #1ebe57; }
@@ -422,53 +400,34 @@ RESULT_TEMPLATE = """
 </head>
 <body>
     <div class="main-card">
-        <h2>🏆 نتيجة اختبارك</h2>
-
-        <div style="text-align: center; background: #f9f9f9; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
-            <p style="margin: 0 0 5px 0; font-size: 16px; color: #333; font-weight: bold;">لقد أتممت الاختبار بنجاح!</p>
-            
-            <div class="circle-score">
-                <div class="score-percentage" id="score-pct"></div>
-                <div class="score-text">النتيجة</div>
-            </div>
-
-            <div id="grade-title" style="font-size: 20px; font-weight: bold; color: #114b3e; margin-top: 10px;"></div>
-            <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">{{ score }} من {{ total }} درجة</p>
+        <h2>نتيجة اختبارك</h2>
+       
+        <div class="score-box">
+            <p style="margin: 0 0 5px 0; font-size: 16px; color: #333;">لقد أتممت الاختبار بنجاح!</p>
+            <div class="score-num">{{ score }} / {{ total }}</div>
             <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">المستوى: {{ level }}</p>
         </div>
-
-        <script>
-            let score = {{ score }};
-            let total = {{ total }};
-            let pct = Math.round((score / total) * 100);
-            document.getElementById('score-pct').innerText = pct + '%';
-            
-            let grade = "جيد";
-            if (pct >= 90) grade = "ممتاز جداً 🏆";
-            else if (pct >= 75) grade = "جيد جداً ⭐";
-            else if (pct >= 50) grade = "جيد 👍";
-            else grade = "محاولة أخرى 💪";
-            
-            document.getElementById('grade-title').innerText = grade;
-        </script>
 
         <h3>تفاصيل الإجابات:</h3>
         <div style="margin-top: 15px;">
             {% for r in results %}
-            <div class="res-item {{ 'correct' if r.is_correct else 'wrong' }}">
-                <p style="margin: 0 0 8px 0; font-weight: bold; color: #333;">{{ r.prompt }}</p>
-                <p style="margin: 0 0 5px 0; font-size: 14px; color: {{ '#2e7d32' if r.is_correct else '#c62828' }};">
-                    إجابتك: {{ r.user_answer }} {{ '✓' if r.is_correct else '✗' }}
-                </p>
-                {% if not r.is_correct %}
-                <p style="margin: 0; font-size: 14px; color: #2e7d32;">الإجابة الصحيحة هي: {{ r.correct_answer }}</p>
-                {% endif %}
-            </div>
+                <div class="res-item {% if r.is_correct %}correct{% else %}wrong{% endif %}">
+                    <p><strong>سؤال {{ r.id }}:</strong> {{ r.prompt }}</p>
+                    <p style="margin: 5px 0; font-size: 14px;">إجابتك: <span style="font-weight: bold; color: {% if r.is_correct %}#2e7d32{% else %}#c62828{% endif %};">{{ r.user_ans }} {% if r.is_correct %}✅{% else %}❌{% endif %}</span></p>
+                    {% if not r.is_correct %}
+                        <p style="margin: 5px 0; font-size: 14px; color: #2e7d32;">الإجابة الصحيحة هي: <strong>{{ r.correct_ans }}</strong></p>
+                    {% endif %}
+                </div>
             {% endfor %}
         </div>
 
-        <a href="/" class="start-btn">إعادة الاختبار 🔄</a>
+        <button type="button" class="start-btn print-btn" onclick="window.print()" style="background: #455a64; margin-top: 15px;">🖨️ طباعة النتيجة</button>
+        <a href="/" class="start-btn" style="text-align: center; margin-top: 10px;">🔄 تصميم امتحان جديد</a>
+        <a href="https://wa.me/201221581154?s=t" class="start-btn wa-btn" target="_blank">تواصل عبر الواتساب للاشتراك 💬</a>
     </div>
 </body>
 </html>
 """
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
