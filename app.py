@@ -1,7 +1,8 @@
 import random
-from flask import Flask, render_template_string, request
+from flask import Flask, render_template_string, request, redirect, url_for, session
 
 app = Flask(__name__)
+app.secret_key = 'ser_el_tafouk_secret_key' # مفتاح الجلسة لتخزين الأسئلة والإجابات
 
 questions_db = {
     "مبتدئ": [
