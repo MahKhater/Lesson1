@@ -381,17 +381,40 @@ RESULT_TEMPLATE = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نتيجة الامتحان - سر التفوق</title>
+    <title>سر التفوق - نتيجة الامتحان</title>
     <style>
         body { font-family: 'Tahoma', sans-serif; background-color: #114b3e; color: #333; margin: 0; padding: 20px; direction: rtl; text-align: right; }
         .main-card { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
         h2 { text-align: center; color: #114b3e; margin-top: 0; font-size: 26px; }
-        .score-box { background: #e8f5e9; border: 2px solid #2e7d32; padding: 20px; border-radius: 15px; text-align: center; margin-bottom: 25px; }
-        .score-num { font-size: 32px; font-weight: bold; color: #1b5e20; }
+        
+        .circle-score {
+            width: 130px;
+            height: 130px;
+            border: 6px solid #114b3e;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 20px auto;
+            background: #e8f5e9;
+        }
+        .score-percentage {
+            font-size: 28px;
+            font-weight: bold;
+            color: #114b3e;
+            direction: ltr;
+        }
+        .score-text {
+            font-size: 13px;
+            color: #555;
+            margin-top: 2px;
+        }
+
         .res-item { background: #f9f9f9; border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 10px; }
         .correct { border-right: 5px solid #2e7d32; }
         .wrong { border-right: 5px solid #c62828; }
-        .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; font-weight: bold; font-size: 16px; border: none; cursor: pointer; box-shadow: 0 4px 10px rgba(17,75,62,0.3); transition: 0.3s; text-decoration: none; box-sizing: border-box; }
+        .start-btn { display: block; width: 100%; background: #114b3e; color: white; padding: 14px; text-align: center; border-radius: 12px; text-decoration: none; font-weight: bold; }
         .start-btn:hover { background: #0d382f; }
         .wa-btn { background: #25d366; margin-top: 10px; display: block; text-align: center; }
         .wa-btn:hover { background: #1ebe57; }
@@ -399,34 +422,53 @@ RESULT_TEMPLATE = """
 </head>
 <body>
     <div class="main-card">
-        <h2>نتيجة اختبارك</h2>
-        
-        <div class="score-box">
-            <p style="margin: 0 0 5px 0; font-size: 16px; color: #333;">لقد أتممت الاختبار بنجاح!</p>
-            <div class="score-num">{{ score }} / {{ total }}</div>
+        <h2>🏆 نتيجة اختبارك</h2>
+
+        <div style="text-align: center; background: #f9f9f9; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+            <p style="margin: 0 0 5px 0; font-size: 16px; color: #333; font-weight: bold;">لقد أتممت الاختبار بنجاح!</p>
+            
+            <div class="circle-score">
+                <div class="score-percentage" id="score-pct"></div>
+                <div class="score-text">النتيجة</div>
+            </div>
+
+            <div id="grade-title" style="font-size: 20px; font-weight: bold; color: #114b3e; margin-top: 10px;"></div>
+            <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">{{ score }} من {{ total }} درجة</p>
             <p style="margin: 5px 0 0 0; font-size: 14px; color: #555;">المستوى: {{ level }}</p>
         </div>
+
+        <script>
+            let score = {{ score }};
+            let total = {{ total }};
+            let pct = Math.round((score / total) * 100);
+            document.getElementById('score-pct').innerText = pct + '%';
+            
+            let grade = "جيد";
+            if (pct >= 90) grade = "ممتاز جداً 🏆";
+            else if (pct >= 75) grade = "جيد جداً ⭐";
+            else if (pct >= 50) grade = "جيد 👍";
+            else grade = "محاولة أخرى 💪";
+            
+            document.getElementById('grade-title').innerText = grade;
+        </script>
 
         <h3>تفاصيل الإجابات:</h3>
         <div style="margin-top: 15px;">
             {% for r in results %}
-                <div class="res-item {% if r.is_correct %}correct{% else %}wrong{% endif %}">
-                    <p><strong>سؤال {{ r.id }}:</strong> {{ r.prompt }}</p>
-                    <p style="margin: 5px 0; font-size: 14px;">إجابتك: <span style="font-weight: bold; color: {% if r.is_correct %}#2e7d32{% else %}#c62828{% endif %};">{{ r.user_ans }} {% if r.is_correct %}✅{% else %}❌{% endif %}</span></p>
-                    {% if not r.is_correct %}
-                        <p style="margin: 5px 0; font-size: 14px; color: #2e7d32;">الإجابة الصحيحة هي: <strong>{{ r.correct_ans }}</strong></p>
-                    {% endif %}
-                </div>
+            <div class="res-item {{ 'correct' if r.is_correct else 'wrong' }}">
+                <p style="margin: 0 0 8px 0; font-weight: bold; color: #333;">{{ r.prompt }}</p>
+                <p style="margin: 0 0 5px 0; font-size: 14px; color: {{ '#2e7d32' if r.is_correct else '#c62828' }};">
+                    إجابتك: {{ r.user_answer }} {{ '✓' if r.is_correct else '✗' }}
+                </p>
+                {% if not r.is_correct %}
+                <p style="margin: 0; font-size: 14px; color: #2e7d32;">الإجابة الصحيحة هي: {{ r.correct_answer }}</p>
+                {% endif %}
+            </div>
             {% endfor %}
         </div>
 
-        <button type="button" class="start-btn print-btn" onclick="window.print()" style="background: #455a64; margin-top: 15px;">🖨️ طباعة النتيجة</button>
-        <a href="/" class="start-btn" style="text-align: center; margin-top: 10px;">🔄 تصميم امتحان جديد</a>
-        <a href="https://wa.me/201221581154?s=t" class="start-btn wa-btn" target="_blank">تواصل عبر الواتساب للاشتراك 💬</a>
+        <a href="/" class="start-btn">إعادة الاختبار 🔄</a>
     </div>
 </body>
 </html>
 """
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
