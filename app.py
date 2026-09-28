@@ -3,7 +3,7 @@ from flask import Flask, render_template_string, request
 
 app = Flask(__name__)
 
-QUESTIONS_DB = {
+questions_db = {
     "مبتدئ": [
         {"id": "b1", "type": "mcq", "prompt": "كلمة 'البيئة' مشتقة من الكلمة الفرنسية Environ والتي تعنى:", "options": ["المحيط", "الغلاف", "السطح", "النظام"], "answer": "المحيط", "hint": "تعني كل ما يحيط بالإنسان وكائنات حيّة."},
         {"id": "b2", "type": "tf", "prompt": "تغطي المياه حوالي 70% من سطح كوكب الأرض.", "options": ["صح", "خطأ"], "answer": "صح", "hint": "النسبة الباقية لليابسة."},
