@@ -4,7 +4,7 @@ from flask import Flask, render_template_string, request, redirect, url_for, ses
 app = Flask(__name__)
 app.secret_key = 'ser_el_tafouk_secret_key' # مفتاح الجلسة لتخزين الأسئلة والإجابات
 
-questions_db = {
+QUESTIONS_DB = {
     "مبتدئ": [
         {"id": "b1", "type": "mcq", "prompt": "كلمة 'البيئة' مشتقة من الكلمة الفرنسية Environ والتي تعنى:", "options": ["المحيط", "الغلاف", "السطح", "النظام"], "answer": "المحيط", "hint": "تعني كل ما يحيط بالإنسان وكائنات حيّة."},
         {"id": "b2", "type": "tf", "prompt": "تغطي المياه حوالي 70% من سطح كوكب الأرض.", "options": ["صح", "خطأ"], "answer": "صح", "hint": "النسبة الباقية لليابسة."},
